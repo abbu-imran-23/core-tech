@@ -1,0 +1,198 @@
+# Specify the version of Docker Compose being used
+version: "3.8"
+
+# Define the services/containers to be run
+services:
+  # Define the client service
+  web:
+    # Specify that the web service depends on the api service
+    depends_on:
+      - api
+
+    # Name of the container for the client service
+    container_name: client
+
+    # Build context for the web service, pointing to the client directory
+    build: ./client
+
+    # Ports to expose for the web service (host:container)
+    ports:
+      - 5173:5173
+
+    # Load environment variables from the .env file located in the client directory
+    env_file:
+      - ./client/.env
+
+    # Enable polling for file change detection (useful for development)
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+    # Command to start the client application
+    command: npm run dev
+
+    # Mount volumes for syncing code changes and avoiding issues with node_modules
+    volumes:
+      - ./client:/app # Sync client code to the container
+      - /app/node_modules # Prevent node_modules from being overwritten
+
+    # Configuration for Docker Compose watch mode to sync changes
+    develop:
+      watch:
+        # Watch for changes in package.json and package-lock.json to trigger a rebuild
+        - path: ./client/package.json
+          action: rebuild
+        - path: ./client/package-lock.json
+          action: rebuild
+        # Watch the client directory for real-time sync
+        - path: ./client
+          target: /app
+          action: sync
+
+  # Define the API service
+  api:
+    # Specify that the api service depends on the db and redis services
+    depends_on:
+      - db
+      - redis
+
+    # Name of the container for the API service
+    container_name: server
+
+    # Build context for the API service, pointing to the server directory
+    build: ./server
+
+    # Ports to expose for the API service (host:container)
+    ports:
+      - 8000:8000
+
+    # Mount volumes for syncing code changes and avoiding issues with node_modules
+    volumes:
+      - ./server:/app # Sync server code to the container
+      - /app/node_modules # Prevent node_modules from being overwritten
+
+    # Load environment variables from the .env file located in the server directory
+    env_file:
+      - ./server/.env
+
+    # Enable polling for file change detection (useful for development)
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+    # Command to start the API application
+    command: npm run dev
+
+    # Configuration for Docker Compose watch mode to sync changes
+    develop:
+      watch:
+        # Watch for changes in package.json and package-lock.json to trigger a rebuild
+        - path: ./server/package.json
+          action: rebuild
+        - path: ./server/package-lock.json
+          action: rebuild
+        # Watch the server directory for real-time sync
+        - path: ./server
+          target: /app
+          action: sync
+
+  # Define the PostgreSQL database service
+  db:
+    # Use the official PostgreSQL image from Docker Hub
+    image: postgres:latest
+
+    # Name of the container for the database service
+    container_name: postgresDB
+
+    # Always restart the postgres service unless explicitly stopped
+    restart: always
+
+    # Ports to expose for the database service (host:container)
+    ports:
+      - 5432:5432
+
+    # Load environment variables from the .env file located in the server directory
+    env_file:
+      - ./server/.env
+
+    # Mount a volume to persist PostgreSQL data across container restarts
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Define the Redis database service
+  redis:
+    # Use the official Redis image from Docker Hub
+    image: redis:latest
+
+    # Name of the container for the Redis service
+    container_name: redis
+
+    # Always restart the Redis service unless explicitly stopped
+    restart: always
+
+    # Ports to expose for the Redis service (host:container)
+    ports:
+      - "6379:6379"
+
+    # Load environment variables from the .env file located in the server directory
+    env_file:
+      - ./server/.env
+
+    # Optional volume for persistent storage of Redis data
+    volumes:
+      - redis_data:/data
+
+  # Define the RedisInsight service for monitoring Redis
+  redisinsight:
+    # Ensure RedisInsight starts after the Redis service
+    depends_on:
+      - redis
+
+    # Use the official RedisInsight image from Docker Hub
+    image: redis/redisinsight:latest
+
+    # Name of the container for RedisInsight
+    container_name: redisinsight
+
+    # Always restart the RedisInsight service unless explicitly stopped
+    restart: always
+
+    # Ports to expose for the RedisInsight service (host:container)
+    ports:
+      - "5540:5540"
+
+    # Load environment variables from the .env file located in the server directory
+    env_file:
+      - ./server/.env
+
+    # Persistent storage for RedisInsight data
+    volumes:
+      - redisinsight_data:/db
+
+  # Define the pgAdmin service
+  pgadmin:
+    # Use the official pgAdmin image from Docker Hub
+    image: dpage/pgadmin4
+
+    # Name of the container for the pgAdmin service
+    container_name: pgadmin
+
+    # Always restart the pgadmin service unless explicitly stopped
+    restart: always
+
+    # Ports to expose for the pgAdmin service (host:container)
+    ports:
+      - 8080:80
+
+    # Load environment variables from the .env file located in the server directory
+    env_file:
+      - ./server/.env
+
+    # Persistent storage for pgAdmin data
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+# Define the named volumes to persist data for the services
+volumes:
+  postgres_data: # Volume for PostgreSQL data
+  redis_data: # Volume for Redis data
+  redisinsight_data: # Volume for RedisInsight data
+  pgadmin_data: # Volume for pgAdmin data
